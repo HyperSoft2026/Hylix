@@ -31,6 +31,7 @@ import { runSceneAndEcsVerificationChecks } from './sceneEcsVerification';
 import { runAssetSystemVerificationChecks } from './assetSystemVerification';
 import { runRenderingVerificationChecks } from './renderingVerification';
 import { runPhysicsVerificationChecks } from './physicsVerification';
+import { runAudioVerificationChecks } from './audioVerification';
 
 export interface VerificationAssertionResult {
   readonly id: string;
@@ -45,7 +46,8 @@ export interface VerificationAssertionResult {
     | 'Scene System & ECS Core'
     | 'Asset System & Resource Management'
     | 'Rendering Foundation & 2D/3D Abstraction'
-    | 'Physics Foundation & Spatial Queries';
+    | 'Physics Foundation & Spatial Queries'
+    | 'Audio System & Sound Resource Management';
   readonly title: string;
   readonly passed: boolean;
   readonly details: string;
@@ -326,6 +328,10 @@ export function runArchitectureVerificationSuite(): ArchitectureVerificationSuit
   // 109..147: Run Phase 6 Physics Foundation & Spatial Queries Verification Suite (39 assertions)
   const phase6Checks = runPhysicsVerificationChecks();
   results.push(...phase6Checks);
+
+  // 148..183: Run Phase 7 Audio System & Sound Resource Management Verification Suite (36 assertions)
+  const phase7Checks = runAudioVerificationChecks();
+  results.push(...phase7Checks);
 
   const passedChecks = results.filter((r) => r.passed).length;
   const failedChecks = results.length - passedChecks;

@@ -42,6 +42,13 @@ export interface ScenePhysicsConfigurationContract {
   readonly maxSubsteps: number;
 }
 
+export interface SceneAudioConfigurationContract {
+  readonly masterVolume: number;
+  readonly maxVoices: number;
+  readonly voiceEvictionPolicy: 'reject' | 'replaceLowestPriority' | 'stopOldestEqualPriority';
+  readonly defaultRolloff: number;
+}
+
 export interface SceneDefinition {
   readonly schemaVersion: number;
   readonly sceneId: string;
@@ -49,6 +56,7 @@ export interface SceneDefinition {
   readonly metadata: SceneMetadata;
   readonly entities: readonly HylixEntity[];
   readonly physicsConfig?: ScenePhysicsConfigurationContract;
+  readonly audioConfig?: SceneAudioConfigurationContract;
 }
 
 /**
@@ -74,6 +82,7 @@ const ALLOWED_SCENE_TOP_KEYS = new Set([
   'metadata',
   'entities',
   'physicsConfig',
+  'audioConfig',
 ]);
 
 const ALLOWED_ENTITY_TOP_KEYS = new Set([
@@ -435,6 +444,81 @@ export function validateSceneDefinition(
     }
   }
 
+  // Validate optional Scene audioConfig (authored configuration only; rejects runtime voices/buffers/handles)
+  let normalizedAudioConfig: SceneAudioConfigurationContract | undefined;
+  if (candidate.audioConfig !== undefined) {
+    if (!isPlainObject(candidate.audioConfig)) {
+      errors.push('Scene audioConfig must be a non-null object.');
+    } else {
+      const ac = candidate.audioConfig;
+      const allowedAcKeys = new Set([
+        'masterVolume',
+        'maxVoices',
+        'voiceEvictionPolicy',
+        'defaultRolloff',
+      ]);
+      for (const k of Object.keys(ac)) {
+        if (!allowedAcKeys.has(k)) {
+          errors.push(
+            `Forbidden or unexpected property '${k}' in Scene audioConfig (runtime audio state cannot be stored in SceneDefinition).`
+          );
+        }
+      }
+      const masterVolume =
+        ac.masterVolume !== undefined ? ac.masterVolume : 1.0;
+      if (
+        typeof masterVolume !== 'number' ||
+        !Number.isFinite(masterVolume) ||
+        masterVolume < 0
+      ) {
+        errors.push('Scene audioConfig.masterVolume must be a finite number >= 0.');
+      }
+      const maxVoices = ac.maxVoices !== undefined ? ac.maxVoices : 32;
+      if (
+        typeof maxVoices !== 'number' ||
+        !Number.isFinite(maxVoices) ||
+        !Number.isInteger(maxVoices) ||
+        maxVoices < 1 ||
+        maxVoices > 256
+      ) {
+        errors.push('Scene audioConfig.maxVoices must be an integer in [1, 256].');
+      }
+      const policy =
+        ac.voiceEvictionPolicy !== undefined
+          ? ac.voiceEvictionPolicy
+          : 'replaceLowestPriority';
+      if (
+        policy !== 'reject' &&
+        policy !== 'replaceLowestPriority' &&
+        policy !== 'stopOldestEqualPriority'
+      ) {
+        errors.push(
+          `Scene audioConfig.voiceEvictionPolicy '${String(policy)}' is invalid.`
+        );
+      }
+      const defaultRolloff =
+        ac.defaultRolloff !== undefined ? ac.defaultRolloff : 1.0;
+      if (
+        typeof defaultRolloff !== 'number' ||
+        !Number.isFinite(defaultRolloff) ||
+        defaultRolloff < 0
+      ) {
+        errors.push('Scene audioConfig.defaultRolloff must be a finite number >= 0.');
+      }
+      if (errors.length === 0) {
+        normalizedAudioConfig = Object.freeze({
+          masterVolume: masterVolume as number,
+          maxVoices: maxVoices as number,
+          voiceEvictionPolicy: policy as
+            | 'reject'
+            | 'replaceLowestPriority'
+            | 'stopOldestEqualPriority',
+          defaultRolloff: defaultRolloff as number,
+        });
+      }
+    }
+  }
+
   // Validate Parent/Child Hierarchy across entities
   if (validatedEntities.length > 0) {
     const hierarchyCheck = validateEntityHierarchy(validatedEntities);
@@ -458,6 +542,7 @@ export function validateSceneDefinition(
     metadata: normalizedMetadata,
     entities: Object.freeze(validatedEntities),
     ...(normalizedPhysicsConfig ? { physicsConfig: normalizedPhysicsConfig } : {}),
+    ...(normalizedAudioConfig ? { audioConfig: normalizedAudioConfig } : {}),
   });
 
   return {
@@ -502,6 +587,7 @@ export function createSceneDefinition(options: {
   readonly description?: string;
   readonly entities?: readonly HylixEntity[];
   readonly physicsConfig?: ScenePhysicsConfigurationContract;
+  readonly audioConfig?: SceneAudioConfigurationContract;
   readonly seedHint?: string;
   readonly registry?: ComponentRegistry;
 }): SceneValidationResult {
@@ -521,6 +607,7 @@ export function createSceneDefinition(options: {
     },
     entities: options.entities ?? [],
     ...(options.physicsConfig ? { physicsConfig: options.physicsConfig } : {}),
+    ...(options.audioConfig ? { audioConfig: options.audioConfig } : {}),
   };
 
   return validateSceneDefinition(

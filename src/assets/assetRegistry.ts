@@ -40,6 +40,13 @@ export type CanonicalAssetType =
   | 'data'
   | 'unknown';
 
+export type AudioAssetSubtype =
+  | 'audio'
+  | 'music'
+  | 'soundEffect'
+  | 'voice'
+  | 'ambience';
+
 export type LegacyAssetType =
   | 'Texture'
   | 'Sprite'
@@ -49,7 +56,8 @@ export type LegacyAssetType =
   | 'Material'
   | 'Shader'
   | 'Script'
-  | 'Scene';
+  | 'Scene'
+  | AudioAssetSubtype;
 
 export type AssetType = CanonicalAssetType | LegacyAssetType;
 
@@ -91,6 +99,15 @@ export const CANONICAL_ASSET_TYPES: ReadonlySet<CanonicalAssetType> =
     'unknown',
   ]);
 
+const AUDIO_SUBTYPE_SYNONYMS: ReadonlySet<string> = new Set([
+  'music',
+  'soundeffect',
+  'sound_effect',
+  'sfx',
+  'voice',
+  'ambience',
+]);
+
 export const SUPPORTED_ASSET_TYPES: ReadonlySet<AssetType> = new Set<AssetType>([
   ...Array.from(CANONICAL_ASSET_TYPES),
   'Texture',
@@ -102,13 +119,20 @@ export const SUPPORTED_ASSET_TYPES: ReadonlySet<AssetType> = new Set<AssetType>(
   'Shader',
   'Script',
   'Scene',
+  'music',
+  'soundEffect',
+  'voice',
+  'ambience',
 ]);
 
 export function normalizeAssetType(candidate: unknown): CanonicalAssetType | null {
   if (typeof candidate !== 'string') return null;
-  const lower = candidate.trim().toLowerCase() as CanonicalAssetType;
-  if (CANONICAL_ASSET_TYPES.has(lower)) {
-    return lower;
+  const lower = candidate.trim().toLowerCase();
+  if (CANONICAL_ASSET_TYPES.has(lower as CanonicalAssetType)) {
+    return lower as CanonicalAssetType;
+  }
+  if (AUDIO_SUBTYPE_SYNONYMS.has(lower)) {
+    return 'audio';
   }
   return null;
 }

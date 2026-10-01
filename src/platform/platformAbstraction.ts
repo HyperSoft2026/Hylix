@@ -105,3 +105,322 @@ export function createAndroidRenderSurfaceBridgeContract(): AndroidRenderSurface
   });
 }
 
+/**
+ * Phase 07 Platform Audio Backend Contract (Requirement 23 & 24).
+ *
+ * Replaceable across Android, iOS, Windows, Linux, and macOS without coupling
+ * Hylix Audio Core to native OS APIs or requesting extra Android permissions.
+ */
+export type PlatformAudioBackendLifecycleState =
+  | 'uninitialized'
+  | 'ready'
+  | 'shutdown';
+
+export interface PlatformAudioBackendVoiceState {
+  readonly voiceId: string;
+  readonly assetId: string;
+  readonly status: 'stopped' | 'playing' | 'paused';
+  readonly volume: number;
+  readonly pitch: number;
+  readonly pan: number;
+  readonly position: { readonly x: number; readonly y: number; readonly z: number };
+}
+
+export interface PlatformAudioBackendContract {
+  readonly backendName: string;
+  readonly targetPlatform: TargetPlatformId;
+  getState(): PlatformAudioBackendLifecycleState;
+  initialize(): { readonly success: boolean; readonly error?: string };
+  shutdown(): { readonly success: boolean; readonly error?: string };
+  createVoice(
+    voiceId: string,
+    assetId: string
+  ): { readonly success: boolean; readonly error?: string };
+  destroyVoice(
+    voiceId: string
+  ): { readonly success: boolean; readonly error?: string };
+  startVoice(
+    voiceId: string
+  ): { readonly success: boolean; readonly error?: string };
+  pauseVoice(
+    voiceId: string
+  ): { readonly success: boolean; readonly error?: string };
+  resumeVoice(
+    voiceId: string
+  ): { readonly success: boolean; readonly error?: string };
+  stopVoice(
+    voiceId: string
+  ): { readonly success: boolean; readonly error?: string };
+  setVolume(
+    voiceId: string,
+    volume: number
+  ): { readonly success: boolean; readonly error?: string };
+  setPitch(
+    voiceId: string,
+    pitch: number
+  ): { readonly success: boolean; readonly error?: string };
+  setPan(
+    voiceId: string,
+    pan: number
+  ): { readonly success: boolean; readonly error?: string };
+  setPosition(
+    voiceId: string,
+    position: { readonly x: number; readonly y: number; readonly z: number }
+  ): { readonly success: boolean; readonly error?: string };
+  getVoiceState(voiceId: string): PlatformAudioBackendVoiceState | null;
+}
+
+export interface AndroidAudioOutputBridgeContract {
+  readonly platformId: TargetPlatformId.ANDROID;
+  readonly applicationId: 'com.hypersoft.hylix';
+  readonly audioProvider: 'AndroidNativeAudioOutputContract';
+  readonly requiresExtraAndroidPermissions: false;
+  readonly allowsDirectSystemOrSdcardPaths: false;
+  readonly futureAudioApiTargets: readonly ('AAudio' | 'OpenSL_ES')[];
+}
+
+export function createAndroidAudioOutputBridgeContract(): AndroidAudioOutputBridgeContract {
+  return Object.freeze({
+    platformId: TargetPlatformId.ANDROID,
+    applicationId: 'com.hypersoft.hylix',
+    audioProvider: 'AndroidNativeAudioOutputContract',
+    requiresExtraAndroidPermissions: false,
+    allowsDirectSystemOrSdcardPaths: false,
+    futureAudioApiTargets: Object.freeze(['AAudio', 'OpenSL_ES'] as const),
+  });
+}
+
+/**
+ * Deterministic contract-only reference implementation of `PlatformAudioBackendContract`.
+ * Enforces backend lifecycle (`uninitialized -> ready -> shutdown`) and voice command ordering
+ * without invoking hardware/OS audio drivers in Phase 07.
+ */
+export class NullContractAudioBackend implements PlatformAudioBackendContract {
+  public readonly backendName = 'HylixNullContractAudioBackend';
+  public readonly targetPlatform: TargetPlatformId;
+  private state: PlatformAudioBackendLifecycleState = 'uninitialized';
+  private readonly voices = new Map<string, PlatformAudioBackendVoiceState>();
+
+  constructor(targetPlatform: TargetPlatformId = TargetPlatformId.ANDROID) {
+    this.targetPlatform = targetPlatform;
+  }
+
+  public getState(): PlatformAudioBackendLifecycleState {
+    return this.state;
+  }
+
+  public initialize(): { readonly success: boolean; readonly error?: string } {
+    if (this.state === 'shutdown') {
+      return {
+        success: false,
+        error: 'Cannot initialize audio backend after shutdown.',
+      };
+    }
+    this.state = 'ready';
+    return { success: true };
+  }
+
+  public shutdown(): { readonly success: boolean; readonly error?: string } {
+    if (this.state === 'shutdown') {
+      return {
+        success: false,
+        error: 'Audio backend is already shut down.',
+      };
+    }
+    this.voices.clear();
+    this.state = 'shutdown';
+    return { success: true };
+  }
+
+  private ensureReady(): { readonly success: boolean; readonly error?: string } {
+    if (this.state !== 'ready') {
+      return {
+        success: false,
+        error: `Audio backend is '${this.state}' (expected 'ready').`,
+      };
+    }
+    return { success: true };
+  }
+
+  public createVoice(
+    voiceId: string,
+    assetId: string
+  ): { readonly success: boolean; readonly error?: string } {
+    const ready = this.ensureReady();
+    if (!ready.success) return ready;
+    if (this.voices.has(voiceId)) {
+      return {
+        success: false,
+        error: `Backend voice '${voiceId}' already exists.`,
+      };
+    }
+    this.voices.set(
+      voiceId,
+      Object.freeze({
+        voiceId,
+        assetId,
+        status: 'stopped',
+        volume: 1,
+        pitch: 1,
+        pan: 0,
+        position: Object.freeze({ x: 0, y: 0, z: 0 }),
+      })
+    );
+    return { success: true };
+  }
+
+  public destroyVoice(
+    voiceId: string
+  ): { readonly success: boolean; readonly error?: string } {
+    const ready = this.ensureReady();
+    if (!ready.success) return ready;
+    if (!this.voices.has(voiceId)) {
+      return {
+        success: false,
+        error: `Backend voice '${voiceId}' does not exist.`,
+      };
+    }
+    this.voices.delete(voiceId);
+    return { success: true };
+  }
+
+  public startVoice(
+    voiceId: string
+  ): { readonly success: boolean; readonly error?: string } {
+    const ready = this.ensureReady();
+    if (!ready.success) return ready;
+    const v = this.voices.get(voiceId);
+    if (!v) return { success: false, error: `Unknown voice '${voiceId}'.` };
+    this.voices.set(voiceId, Object.freeze({ ...v, status: 'playing' }));
+    return { success: true };
+  }
+
+  public pauseVoice(
+    voiceId: string
+  ): { readonly success: boolean; readonly error?: string } {
+    const ready = this.ensureReady();
+    if (!ready.success) return ready;
+    const v = this.voices.get(voiceId);
+    if (!v) return { success: false, error: `Unknown voice '${voiceId}'.` };
+    if (v.status !== 'playing') {
+      return {
+        success: false,
+        error: `Cannot pause voice '${voiceId}' in state '${v.status}'.`,
+      };
+    }
+    this.voices.set(voiceId, Object.freeze({ ...v, status: 'paused' }));
+    return { success: true };
+  }
+
+  public resumeVoice(
+    voiceId: string
+  ): { readonly success: boolean; readonly error?: string } {
+    const ready = this.ensureReady();
+    if (!ready.success) return ready;
+    const v = this.voices.get(voiceId);
+    if (!v) return { success: false, error: `Unknown voice '${voiceId}'.` };
+    if (v.status !== 'paused') {
+      return {
+        success: false,
+        error: `Cannot resume voice '${voiceId}' in state '${v.status}'.`,
+      };
+    }
+    this.voices.set(voiceId, Object.freeze({ ...v, status: 'playing' }));
+    return { success: true };
+  }
+
+  public stopVoice(
+    voiceId: string
+  ): { readonly success: boolean; readonly error?: string } {
+    const ready = this.ensureReady();
+    if (!ready.success) return ready;
+    const v = this.voices.get(voiceId);
+    if (!v) return { success: false, error: `Unknown voice '${voiceId}'.` };
+    this.voices.set(voiceId, Object.freeze({ ...v, status: 'stopped' }));
+    return { success: true };
+  }
+
+  public setVolume(
+    voiceId: string,
+    volume: number
+  ): { readonly success: boolean; readonly error?: string } {
+    const ready = this.ensureReady();
+    if (!ready.success) return ready;
+    const v = this.voices.get(voiceId);
+    if (!v) return { success: false, error: `Unknown voice '${voiceId}'.` };
+    if (typeof volume !== 'number' || !Number.isFinite(volume) || volume < 0) {
+      return { success: false, error: `Invalid volume '${String(volume)}'.` };
+    }
+    this.voices.set(voiceId, Object.freeze({ ...v, volume }));
+    return { success: true };
+  }
+
+  public setPitch(
+    voiceId: string,
+    pitch: number
+  ): { readonly success: boolean; readonly error?: string } {
+    const ready = this.ensureReady();
+    if (!ready.success) return ready;
+    const v = this.voices.get(voiceId);
+    if (!v) return { success: false, error: `Unknown voice '${voiceId}'.` };
+    if (typeof pitch !== 'number' || !Number.isFinite(pitch) || pitch <= 0) {
+      return { success: false, error: `Invalid pitch '${String(pitch)}'.` };
+    }
+    this.voices.set(voiceId, Object.freeze({ ...v, pitch }));
+    return { success: true };
+  }
+
+  public setPan(
+    voiceId: string,
+    pan: number
+  ): { readonly success: boolean; readonly error?: string } {
+    const ready = this.ensureReady();
+    if (!ready.success) return ready;
+    const v = this.voices.get(voiceId);
+    if (!v) return { success: false, error: `Unknown voice '${voiceId}'.` };
+    if (
+      typeof pan !== 'number' ||
+      !Number.isFinite(pan) ||
+      pan < -1 ||
+      pan > 1
+    ) {
+      return { success: false, error: `Invalid pan '${String(pan)}'.` };
+    }
+    this.voices.set(voiceId, Object.freeze({ ...v, pan }));
+    return { success: true };
+  }
+
+  public setPosition(
+    voiceId: string,
+    position: { readonly x: number; readonly y: number; readonly z: number }
+  ): { readonly success: boolean; readonly error?: string } {
+    const ready = this.ensureReady();
+    if (!ready.success) return ready;
+    const v = this.voices.get(voiceId);
+    if (!v) return { success: false, error: `Unknown voice '${voiceId}'.` };
+    if (
+      !Number.isFinite(position.x) ||
+      !Number.isFinite(position.y) ||
+      !Number.isFinite(position.z)
+    ) {
+      return { success: false, error: 'Invalid 3D position.' };
+    }
+    this.voices.set(
+      voiceId,
+      Object.freeze({
+        ...v,
+        position: Object.freeze({
+          x: position.x,
+          y: position.y,
+          z: position.z,
+        }),
+      })
+    );
+    return { success: true };
+  }
+
+  public getVoiceState(voiceId: string): PlatformAudioBackendVoiceState | null {
+    return this.voices.get(voiceId) ?? null;
+  }
+}
+

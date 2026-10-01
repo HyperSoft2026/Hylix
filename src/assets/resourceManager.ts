@@ -725,6 +725,105 @@ export class ResourceManager {
   }
 
   /**
+   * Phase 07 Audio Resource Management integration:
+   * Loads an Audio asset (`type === 'audio'`), verifying `AudioResource` kind and logging audio diagnostics.
+   */
+  public loadAudio(assetId: string): {
+    success: boolean;
+    resource: ResourceHandle | null;
+    fromCache: boolean;
+    errors: readonly string[];
+  } {
+    this.logger?.record(
+      'audio',
+      'INFO',
+      `audio_resource_load_started: assetId=${String(assetId)}`
+    );
+
+    const assetMeta = this.registry.getAsset(assetId);
+    if (assetMeta && assetMeta.type !== 'audio') {
+      const msg = `Resource Type Mismatch: Asset '${assetId}' has type '${assetMeta.type}', expected 'audio'.`;
+      this.logger?.record('audio', 'ERROR', `audio_resource_load_failed: ${msg}`);
+      return {
+        success: false,
+        resource: null,
+        fromCache: false,
+        errors: [msg],
+      };
+    }
+
+    const res = this.load(assetId);
+    if (!res.success || !res.resource) {
+      this.logger?.record(
+        'audio',
+        'ERROR',
+        `audio_resource_load_failed: assetId=${String(assetId)} (${res.errors.join('; ')})`
+      );
+      return res;
+    }
+
+    this.logger?.record(
+      'audio',
+      'INFO',
+      `audio_resource_load_succeeded: resourceId=${res.resource.resourceId} assetId=${assetId} refs=${res.resource.referenceCount}`
+    );
+    return res;
+  }
+
+  public retainAudio(assetId: string): {
+    success: boolean;
+    referenceCount: number;
+    resource: ResourceHandle | null;
+    error?: string;
+  } {
+    const existing = this.resourcesByAssetId.get(assetId);
+    if (existing && existing.resourceKind !== 'AudioResource') {
+      return {
+        success: false,
+        referenceCount: existing.referenceCount,
+        resource: existing,
+        error: `Resource '${assetId}' is '${existing.resourceKind}', expected 'AudioResource'.`,
+      };
+    }
+    return this.retain(assetId);
+  }
+
+  public releaseAudio(assetId: string): {
+    success: boolean;
+    referenceCount: number;
+    eligibleForUnload: boolean;
+    resource: ResourceHandle | null;
+    error?: string;
+  } {
+    const existing = this.resourcesByAssetId.get(assetId);
+    if (existing && existing.resourceKind !== 'AudioResource') {
+      return {
+        success: false,
+        referenceCount: existing.referenceCount,
+        eligibleForUnload: existing.eligibleForUnload,
+        resource: existing,
+        error: `Resource '${assetId}' is '${existing.resourceKind}', expected 'AudioResource'.`,
+      };
+    }
+    return this.release(assetId);
+  }
+
+  public invalidateAudio(assetId: string): {
+    invalidated: boolean;
+    resource: ResourceHandle | null;
+  } {
+    const res = this.invalidate(assetId);
+    if (res.invalidated && res.resource) {
+      this.logger?.record(
+        'audio',
+        'INFO',
+        `audio_resource_invalidated: resourceId=${res.resource.resourceId} assetId=${assetId}`
+      );
+    }
+    return res;
+  }
+
+  /**
    * Safely releases all references and unloads all resources when closing a project.
    */
   public releaseAllForProjectClose(): { releasedResourceCount: number } {
