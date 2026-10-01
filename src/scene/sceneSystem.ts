@@ -49,6 +49,13 @@ export interface SceneAudioConfigurationContract {
   readonly defaultRolloff: number;
 }
 
+export interface SceneInputConfigurationContract {
+  readonly maxBufferedEvents: number;
+  readonly bufferOverflowPolicy: 'rejectNewest' | 'dropOldest';
+  readonly defaultDeadZone: number;
+  readonly defaultContextName: string;
+}
+
 export interface SceneDefinition {
   readonly schemaVersion: number;
   readonly sceneId: string;
@@ -57,6 +64,7 @@ export interface SceneDefinition {
   readonly entities: readonly HylixEntity[];
   readonly physicsConfig?: ScenePhysicsConfigurationContract;
   readonly audioConfig?: SceneAudioConfigurationContract;
+  readonly inputConfig?: SceneInputConfigurationContract;
 }
 
 /**
@@ -83,6 +91,7 @@ const ALLOWED_SCENE_TOP_KEYS = new Set([
   'entities',
   'physicsConfig',
   'audioConfig',
+  'inputConfig',
 ]);
 
 const ALLOWED_ENTITY_TOP_KEYS = new Set([
@@ -519,6 +528,88 @@ export function validateSceneDefinition(
     }
   }
 
+  // Validate optional Scene inputConfig (authored configuration only; rejects runtime input buffers/devices)
+  let normalizedInputConfig: SceneInputConfigurationContract | undefined;
+  if (candidate.inputConfig !== undefined) {
+    if (!isPlainObject(candidate.inputConfig)) {
+      errors.push('Scene inputConfig must be a non-null object.');
+    } else {
+      const ic = candidate.inputConfig;
+      const allowedIcKeys = new Set([
+        'maxBufferedEvents',
+        'bufferOverflowPolicy',
+        'defaultDeadZone',
+        'defaultContextName',
+      ]);
+      for (const k of Object.keys(ic)) {
+        if (!allowedIcKeys.has(k)) {
+          errors.push(
+            `Forbidden or unexpected property '${k}' in Scene inputConfig (runtime input state cannot be stored in SceneDefinition).`
+          );
+        }
+      }
+      const maxBufferedEvents =
+        ic.maxBufferedEvents !== undefined ? ic.maxBufferedEvents : 512;
+      if (
+        typeof maxBufferedEvents !== 'number' ||
+        !Number.isFinite(maxBufferedEvents) ||
+        !Number.isInteger(maxBufferedEvents) ||
+        maxBufferedEvents < 1 ||
+        maxBufferedEvents > 8192
+      ) {
+        errors.push(
+          'Scene inputConfig.maxBufferedEvents must be an integer in [1, 8192].'
+        );
+      }
+      const bufferOverflowPolicy =
+        ic.bufferOverflowPolicy !== undefined
+          ? ic.bufferOverflowPolicy
+          : 'rejectNewest';
+      if (
+        bufferOverflowPolicy !== 'rejectNewest' &&
+        bufferOverflowPolicy !== 'dropOldest'
+      ) {
+        errors.push(
+          `Scene inputConfig.bufferOverflowPolicy '${String(bufferOverflowPolicy)}' is invalid.`
+        );
+      }
+      const defaultDeadZone =
+        ic.defaultDeadZone !== undefined ? ic.defaultDeadZone : 0.1;
+      if (
+        typeof defaultDeadZone !== 'number' ||
+        !Number.isFinite(defaultDeadZone) ||
+        defaultDeadZone < 0 ||
+        defaultDeadZone >= 1.0
+      ) {
+        errors.push(
+          'Scene inputConfig.defaultDeadZone must be a finite number in [0, 1).'
+        );
+      }
+      const defaultContextName =
+        ic.defaultContextName !== undefined
+          ? ic.defaultContextName
+          : 'Gameplay';
+      if (
+        typeof defaultContextName !== 'string' ||
+        defaultContextName.trim().length === 0
+      ) {
+        errors.push(
+          'Scene inputConfig.defaultContextName must be a non-empty string.'
+        );
+      }
+      if (errors.length === 0) {
+        normalizedInputConfig = Object.freeze({
+          maxBufferedEvents: maxBufferedEvents as number,
+          bufferOverflowPolicy: bufferOverflowPolicy as
+            | 'rejectNewest'
+            | 'dropOldest',
+          defaultDeadZone: defaultDeadZone as number,
+          defaultContextName: (defaultContextName as string).trim(),
+        });
+      }
+    }
+  }
+
   // Validate Parent/Child Hierarchy across entities
   if (validatedEntities.length > 0) {
     const hierarchyCheck = validateEntityHierarchy(validatedEntities);
@@ -543,6 +634,7 @@ export function validateSceneDefinition(
     entities: Object.freeze(validatedEntities),
     ...(normalizedPhysicsConfig ? { physicsConfig: normalizedPhysicsConfig } : {}),
     ...(normalizedAudioConfig ? { audioConfig: normalizedAudioConfig } : {}),
+    ...(normalizedInputConfig ? { inputConfig: normalizedInputConfig } : {}),
   });
 
   return {

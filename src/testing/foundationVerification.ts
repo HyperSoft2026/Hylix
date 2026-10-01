@@ -32,6 +32,7 @@ import { runAssetSystemVerificationChecks } from './assetSystemVerification';
 import { runRenderingVerificationChecks } from './renderingVerification';
 import { runPhysicsVerificationChecks } from './physicsVerification';
 import { runAudioVerificationChecks } from './audioVerification';
+import { runInputVerificationChecks } from './inputVerification';
 
 export interface VerificationAssertionResult {
   readonly id: string;
@@ -47,7 +48,9 @@ export interface VerificationAssertionResult {
     | 'Asset System & Resource Management'
     | 'Rendering Foundation & 2D/3D Abstraction'
     | 'Physics Foundation & Spatial Queries'
-    | 'Audio System & Sound Resource Management';
+    | 'Audio System & Sound Resource Management'
+    | 'Input System & Device Abstraction'
+    | 'Input System';
   readonly title: string;
   readonly passed: boolean;
   readonly details: string;
@@ -332,6 +335,10 @@ export function runArchitectureVerificationSuite(): ArchitectureVerificationSuit
   // 148..183: Run Phase 7 Audio System & Sound Resource Management Verification Suite (36 assertions)
   const phase7Checks = runAudioVerificationChecks();
   results.push(...phase7Checks);
+
+  // 184..223: Run Phase 8 Input System & Device Abstraction Verification Suite (40 assertions)
+  const phase8Checks = runInputVerificationChecks();
+  results.push(...phase8Checks);
 
   const passedChecks = results.filter((r) => r.passed).length;
   const failedChecks = results.length - passedChecks;
