@@ -500,11 +500,20 @@ export class HylixProjectManager {
 
     // 2. Write default scene file atomically (with two writes so a valid .bak baseline exists)
     const scenePath = `${projectRoot}/${preCheck.manifest.defaultScene}`;
+    const deterministicMainSceneId = `scene_${computeDeterministicChecksum(
+      `hylix_main_scene::${preCheck.manifest.projectId}`
+    )}`;
+    const nowIso = new Date().toISOString();
     const defaultSceneContent = JSON.stringify(
       {
-        sceneSchemaVersion: 1,
-        sceneId: 'scn_main_entry',
-        sceneName: 'Main Entry Scene',
+        schemaVersion: 1,
+        sceneId: deterministicMainSceneId,
+        sceneName: 'Main Scene',
+        metadata: {
+          description: 'Default project entry scene',
+          createdAtIso: nowIso,
+          updatedAtIso: nowIso,
+        },
         entities: [],
       },
       null,

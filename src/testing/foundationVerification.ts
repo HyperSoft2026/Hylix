@@ -27,6 +27,7 @@ import {
 import { validateProjectManifest } from '../project/projectSystem';
 import { RedactedDiagnosticLogger } from '../debugging/diagnosticLogger';
 import { runProjectSystemVerificationChecks } from './projectSystemVerification';
+import { runSceneAndEcsVerificationChecks } from './sceneEcsVerification';
 
 export interface VerificationAssertionResult {
   readonly id: string;
@@ -37,7 +38,8 @@ export interface VerificationAssertionResult {
     | 'Security & Privilege Separation'
     | 'Atomic Storage & Project Safety'
     | 'Project Lifecycle & Manifest'
-    | 'Workspace Lock & Recovery';
+    | 'Workspace Lock & Recovery'
+    | 'Scene System & ECS Core';
   readonly title: string;
   readonly passed: boolean;
   readonly details: string;
@@ -302,6 +304,10 @@ export function runArchitectureVerificationSuite(): ArchitectureVerificationSuit
   // 11..19: Run Phase 2 Project System & Local Storage Layer Verification Suite
   const phase2Checks = runProjectSystemVerificationChecks();
   results.push(...phase2Checks);
+
+  // 20..41: Run Phase 3 Scene System & ECS Core Verification Suite (22 assertions)
+  const phase3Checks = runSceneAndEcsVerificationChecks();
+  results.push(...phase3Checks);
 
   const passedChecks = results.filter((r) => r.passed).length;
   const failedChecks = results.length - passedChecks;
