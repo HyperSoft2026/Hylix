@@ -300,8 +300,32 @@
         return;
       }
 
-      // 1. Relay Gateway Status Endpoint
-      if (pathname === '/api/gateway/status') {
+      const normalizedRoute =
+        pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+
+      // 1. Local Health Endpoint (100% local, zero GitHub/network dependency)
+      if (normalizedRoute === '/health' || normalizedRoute === '/api/health') {
+        const payload = JSON.stringify(
+          {
+            ok: true,
+            service: 'Hylix Engine & Editor Relay Server',
+            status: 'online',
+            version: '1.0.0',
+            timestampIso: new Date().toISOString(),
+          },
+          null,
+          2
+        );
+        res.writeHead(200, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+        });
+        res.end(payload);
+        return;
+      }
+
+      // 2. Relay Gateway Status Endpoint
+      if (normalizedRoute === '/api/gateway/status') {
         const payload = JSON.stringify(
           {
             status: 'ONLINE',
@@ -332,8 +356,8 @@
         return;
       }
 
-      // 2. Relay Cache Refresh Endpoint (forces immediate re-fetch from GitHub)
-      if (pathname === '/api/gateway/refresh') {
+      // 3. Relay Cache Refresh Endpoint (forces immediate re-fetch from GitHub)
+      if (normalizedRoute === '/api/gateway/refresh') {
         const clearedEntries = memoryCache.size;
         memoryCache.clear();
         const payload = JSON.stringify(
@@ -352,8 +376,8 @@
         return;
       }
 
-      // 3. Live Repository Tree Endpoint (queries GitHub API directly)
-      if (pathname === '/api/repo/tree') {
+      // 4. Live Repository Tree Endpoint (queries GitHub API directly)
+      if (normalizedRoute === '/api/repo/tree') {
         const treeUrl = `${API_GITHUB_BASE}/git/trees/${GITHUB_BRANCH}?recursive=1`;
         const ghRes = await fetchHttpsBuffer(treeUrl, {
           Accept: 'application/vnd.github+json',
@@ -365,7 +389,7 @@
         return;
       }
 
-      // 4. Resolve requested file from GitHub Repository (HyperSoft2026/Hylix)
+      // 5. Resolve requested file from GitHub Repository (HyperSoft2026/Hylix)
       const repoFile = await resolveRepositoryFile(pathname === '/' ? 'index.html' : pathname);
       if (!repoFile) {
         res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
