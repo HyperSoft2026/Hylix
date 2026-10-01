@@ -631,6 +631,88 @@ export function createSceneRuntimeInstance(
 }
 
 /**
+ * Decoupled contract allowing Scene System to verify Asset References
+ * (`Scene -> Entity -> Component -> Asset Reference`) without direct coupling to ResourceManager.
+ */
+export interface SceneAssetLookupContract {
+  resolveAssetReference(assetId: string): {
+    readonly assetId: string;
+    readonly status: 'available' | 'missing' | 'corrupted' | 'invalid';
+    readonly reason?: string;
+  };
+}
+
+export interface SceneAssetReferenceStatus {
+  readonly entityId: string;
+  readonly componentType: string;
+  readonly propertyKey: string;
+  readonly assetId: string;
+  readonly status: 'available' | 'missing' | 'corrupted' | 'invalid';
+  readonly reason?: string;
+}
+
+export interface SceneAssetInspectionReport {
+  readonly sceneId: string;
+  readonly allAvailable: boolean;
+  readonly references: readonly SceneAssetReferenceStatus[];
+  readonly missingAssets: readonly SceneAssetReferenceStatus[];
+  readonly corruptedAssets: readonly SceneAssetReferenceStatus[];
+}
+
+/**
+ * Inspects all `*AssetId` / `assetId` references across all entities and components in a Scene.
+ * Gracefully reports `missing` or `corrupted` assets without crashing Scene System
+ * and without fabricating fake assets inside the Asset Registry.
+ */
+export function inspectSceneAssetReferences(
+  scene: SceneDefinition,
+  assetLookup: SceneAssetLookupContract
+): SceneAssetInspectionReport {
+  const references: SceneAssetReferenceStatus[] = [];
+  const missingAssets: SceneAssetReferenceStatus[] = [];
+  const corruptedAssets: SceneAssetReferenceStatus[] = [];
+
+  for (const ent of scene.entities) {
+    for (const [compType, compPayload] of Object.entries(ent.components)) {
+      if (!isPlainObject(compPayload)) continue;
+      for (const [propKey, propVal] of Object.entries(compPayload)) {
+        if (
+          (propKey === 'assetId' || propKey.endsWith('AssetId')) &&
+          typeof propVal === 'string'
+        ) {
+          const resolved = assetLookup.resolveAssetReference(propVal);
+          const item: SceneAssetReferenceStatus = Object.freeze({
+            entityId: ent.entityId,
+            componentType: compType,
+            propertyKey: propKey,
+            assetId: propVal,
+            status: resolved.status,
+            reason: resolved.reason,
+          });
+          references.push(item);
+          if (resolved.status === 'missing') {
+            missingAssets.push(item);
+          } else if (resolved.status === 'corrupted') {
+            corruptedAssets.push(item);
+          }
+        }
+      }
+    }
+  }
+
+  return Object.freeze({
+    sceneId: scene.sceneId,
+    allAvailable:
+      missingAssets.length === 0 &&
+      corruptedAssets.length === 0 &&
+      references.every((r) => r.status === 'available'),
+    references: Object.freeze(references),
+    missingAssets: Object.freeze(missingAssets),
+    corruptedAssets: Object.freeze(corruptedAssets),
+  });
+}
+
+/**
  * HylixSceneManager: Integrates Scene System with `LocalFirstAtomicStore` and `HylixProjectManager`.
  */
 export class HylixSceneManager {

@@ -13,6 +13,7 @@ import { computeDeterministicChecksum } from '../storage/atomicStorage';
 
 export const TRANSFORM_COMPONENT_TYPE = 'Transform';
 export const METADATA_COMPONENT_TYPE = 'Metadata';
+export const ASSET_REFERENCE_COMPONENT_TYPE = 'AssetReference';
 
 export interface Vector3Data {
   readonly x: number;
@@ -30,6 +31,20 @@ export interface MetadataComponentData {
   readonly tag: string;
   readonly layer: string;
   readonly notes: string;
+}
+
+export interface AssetReferenceComponentData {
+  readonly assetId?: string;
+  readonly textureAssetId?: string;
+  readonly spriteAssetId?: string;
+  readonly modelAssetId?: string;
+  readonly materialAssetId?: string;
+  readonly shaderAssetId?: string;
+  readonly audioAssetId?: string;
+  readonly fontAssetId?: string;
+  readonly animationAssetId?: string;
+  readonly prefabAssetId?: string;
+  readonly scriptAssetId?: string;
 }
 
 export interface ComponentValidationResult<TData = unknown> {
@@ -248,6 +263,91 @@ export const OFFICIAL_METADATA_SPEC: ComponentSpecification<MetadataComponentDat
     validate: validateMetadataComponentData,
   });
 
+const ALLOWED_ASSET_REFERENCE_KEYS = new Set([
+  'assetId',
+  'textureAssetId',
+  'spriteAssetId',
+  'modelAssetId',
+  'materialAssetId',
+  'shaderAssetId',
+  'audioAssetId',
+  'fontAssetId',
+  'animationAssetId',
+  'prefabAssetId',
+  'scriptAssetId',
+]);
+
+const VALID_ECS_ASSET_ID_REGEX = /^(asset|ast)_[a-f0-9]{16}$/i;
+
+export function createDefaultAssetReferenceData(): AssetReferenceComponentData {
+  return Object.freeze({
+    assetId: 'asset_0000000000000000',
+  });
+}
+
+export function validateAssetReferenceComponentData(
+  candidate: unknown
+): ComponentValidationResult<AssetReferenceComponentData> {
+  if (!isPlainObject(candidate)) {
+    return {
+      valid: false,
+      data: null,
+      errors: ['AssetReference component must be a non-null object.'],
+    };
+  }
+
+  const errors: string[] = [];
+  const normalized: Record<string, string> = {};
+  let validRefCount = 0;
+
+  for (const [key, value] of Object.entries(candidate)) {
+    if (!ALLOWED_ASSET_REFERENCE_KEYS.has(key)) {
+      errors.push(
+        `Forbidden or unexpected property '${key}' in AssetReference component. Use *AssetId references instead of raw file paths.`
+      );
+      continue;
+    }
+
+    if (value === undefined) continue;
+    if (typeof value !== 'string' || !VALID_ECS_ASSET_ID_REGEX.test(value)) {
+      errors.push(
+        `Invalid ${key} '${String(value)}'. Expected deterministic Asset ID ('asset_<16-hex>'); raw paths (e.g. /sdcard/...) are strictly forbidden.`
+      );
+    } else {
+      normalized[key] = value;
+      validRefCount += 1;
+    }
+  }
+
+  if (validRefCount === 0 && errors.length === 0) {
+    errors.push(
+      'AssetReference component must specify at least one valid *AssetId reference.'
+    );
+  }
+
+  if (errors.length > 0) {
+    return {
+      valid: false,
+      data: null,
+      errors,
+    };
+  }
+
+  return {
+    valid: true,
+    data: Object.freeze(normalized) as AssetReferenceComponentData,
+    errors: [],
+  };
+}
+
+export const OFFICIAL_ASSET_REFERENCE_SPEC: ComponentSpecification<AssetReferenceComponentData> =
+  Object.freeze({
+    type: ASSET_REFERENCE_COMPONENT_TYPE,
+    schemaVersion: 1,
+    createDefault: createDefaultAssetReferenceData,
+    validate: validateAssetReferenceComponentData,
+  });
+
 /**
  * Isolated, non-global ComponentRegistry instance.
  */
@@ -326,6 +426,7 @@ export function createStandardComponentRegistry(): ComponentRegistry {
   const registry = new ComponentRegistry();
   registry.registerComponentType(OFFICIAL_TRANSFORM_SPEC);
   registry.registerComponentType(OFFICIAL_METADATA_SPEC);
+  registry.registerComponentType(OFFICIAL_ASSET_REFERENCE_SPEC);
   return registry;
 }
 

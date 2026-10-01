@@ -10,8 +10,11 @@ import {
 import {
   AssetRegistryDocument,
   createDeterministicAssetId,
+  HylixAssetRegistry,
   validateAssetRegistryDocument,
 } from '../assets/assetRegistry';
+import { computeAssetContentHash } from '../assets/contentHash';
+import { ResourceManager } from '../assets/resourceManager';
 import {
   acquireWorkspaceLock,
   inspectWorkspaceLock,
@@ -383,6 +386,8 @@ export interface OpenProjectResult {
   readonly lockRecord: WorkspaceLockRecord | null;
   readonly recoveredFromStaleLock: boolean;
   readonly recreatedMissingDirectories: readonly string[];
+  readonly assetRegistry?: HylixAssetRegistry | null;
+  readonly resourceManager?: ResourceManager | null;
   readonly errors: readonly string[];
 }
 
@@ -414,6 +419,8 @@ export interface ProjectRepairReport {
 
 export class HylixProjectManager {
   private readonly store: LocalFirstAtomicStore;
+  private readonly activeAssetRegistries = new Map<string, HylixAssetRegistry>();
+  private readonly activeResourceManagers = new Map<string, ResourceManager>();
 
   constructor(store: LocalFirstAtomicStore) {
     this.store = store;
@@ -421,6 +428,18 @@ export class HylixProjectManager {
 
   public getStore(): LocalFirstAtomicStore {
     return this.store;
+  }
+
+  public getAssetRegistry(projectRoot: string): HylixAssetRegistry | undefined {
+    const check = validateWorkspaceRelativePath(projectRoot);
+    if (!check.safe) return undefined;
+    return this.activeAssetRegistries.get(check.normalizedPath);
+  }
+
+  public getResourceManager(projectRoot: string): ResourceManager | undefined {
+    const check = validateWorkspaceRelativePath(projectRoot);
+    if (!check.safe) return undefined;
+    return this.activeResourceManagers.get(check.normalizedPath);
   }
 
   /**
@@ -525,21 +544,50 @@ export class HylixProjectManager {
 
     // 3. Write initial Asset Registry in .hylix/asset-registry.hylix.json
     const assetRegistryPath = `${projectRoot}/.hylix/asset-registry.hylix.json`;
+    const defaultSceneByteLength = new TextEncoder().encode(defaultSceneContent).byteLength;
+    const defaultSceneSha256 = computeAssetContentHash(defaultSceneContent);
+    const defaultSceneAssetId = createDeterministicAssetId(
+      preCheck.manifest.projectId,
+      preCheck.manifest.defaultScene
+    );
     const initialRegistry: AssetRegistryDocument = {
       schemaVersion: 1,
       projectId: preCheck.manifest.projectId,
       updatedAtIso: new Date().toISOString(),
+      assets: [
+        {
+          assetId: defaultSceneAssetId,
+          type: 'scene',
+          path: preCheck.manifest.defaultScene,
+          name: 'main.scene.hylix.json',
+          sizeBytes: defaultSceneByteLength,
+          contentHash: defaultSceneSha256,
+          schemaVersion: 1,
+          importState: 'verified',
+          dependencies: [],
+          metadata: {},
+          dirty: false,
+          lifecycleState: 'available',
+          size: defaultSceneByteLength,
+          checksum: sceneWrite1.checksumHex,
+        },
+      ],
       entries: [
         {
-          assetId: createDeterministicAssetId(
-            preCheck.manifest.projectId,
-            preCheck.manifest.defaultScene
-          ),
+          assetId: defaultSceneAssetId,
           path: preCheck.manifest.defaultScene,
+          name: 'main.scene.hylix.json',
           type: 'Scene',
-          size: new TextEncoder().encode(defaultSceneContent).byteLength,
+          size: defaultSceneByteLength,
+          sizeBytes: defaultSceneByteLength,
           checksum: sceneWrite1.checksumHex,
+          contentHash: defaultSceneSha256,
+          schemaVersion: 1,
           importState: 'verified',
+          dependencies: [],
+          metadata: {},
+          dirty: false,
+          lifecycleState: 'available',
         },
       ],
     };
@@ -695,6 +743,26 @@ export class HylixProjectManager {
       };
     }
 
+    // Load & validate Asset Registry
+    const assetRegistry = new HylixAssetRegistry(manifestVal.manifest.projectId);
+    const registryLoad = assetRegistry.loadFromStore(
+      this.store,
+      normalizedRoot,
+      false
+    );
+    if (!registryLoad.success) {
+      return {
+        success: false,
+        status: 'CORRUPTED_NEEDS_REPAIR',
+        projectRoot: normalizedRoot,
+        manifest: null,
+        lockRecord: null,
+        recoveredFromStaleLock: false,
+        recreatedMissingDirectories: [],
+        errors: registryLoad.errors,
+      };
+    }
+
     // Step 6 & 7: Check required directories and safely recreate any missing standard directory
     const recreatedMissingDirectories: string[] = [];
     for (const reqDir of REQUIRED_PROJECT_DIRECTORIES) {
@@ -726,6 +794,15 @@ export class HylixProjectManager {
       };
     }
 
+    // Initialize ResourceManager for the opened project
+    const resourceManager = new ResourceManager({
+      projectRoot: normalizedRoot,
+      store: this.store,
+      registry: assetRegistry,
+    });
+    this.activeAssetRegistries.set(normalizedRoot, assetRegistry);
+    this.activeResourceManagers.set(normalizedRoot, resourceManager);
+
     // Step 9: Return opened project handle
     return {
       success: true,
@@ -735,6 +812,8 @@ export class HylixProjectManager {
       lockRecord: lockRes.lockRecord,
       recoveredFromStaleLock: lockRes.recoveredFromCrashOrStaleLock,
       recreatedMissingDirectories,
+      assetRegistry,
+      resourceManager,
       errors: [],
     };
   }
@@ -838,7 +917,45 @@ export class HylixProjectManager {
     projectRoot: string,
     sessionId: string,
     nowEpochMs: number = Date.now()
-  ): { closed: boolean; error?: string } {
+  ): {
+    closed: boolean;
+    flushedAssetMetadata: boolean;
+    releasedResourceCount: number;
+    error?: string;
+  } {
+    const rootCheck = validateWorkspaceRelativePath(projectRoot);
+    const normalizedRoot = rootCheck.safe ? rootCheck.normalizedPath : projectRoot;
+
+    const lockCheck = inspectWorkspaceLock(
+      this.store,
+      normalizedRoot,
+      sessionId,
+      nowEpochMs
+    );
+
+    let flushedAssetMetadata = false;
+    let releasedResourceCount = 0;
+
+    if (lockCheck.state === 'LOCKED_BY_CURRENT_SESSION') {
+      // 1. Flush safe Asset Registry metadata atomically before releasing resources
+      const activeReg = this.activeAssetRegistries.get(normalizedRoot);
+      if (activeReg) {
+        const saveRes = activeReg.saveToStore(this.store, normalizedRoot);
+        flushedAssetMetadata = saveRes.success;
+      }
+
+      // 2. Release all in-memory resources managed by ResourceManager
+      const activeRm = this.activeResourceManagers.get(normalizedRoot);
+      if (activeRm) {
+        const relRes = activeRm.releaseAllForProjectClose();
+        releasedResourceCount = relRes.releasedResourceCount;
+      }
+
+      this.activeAssetRegistries.delete(normalizedRoot);
+      this.activeResourceManagers.delete(normalizedRoot);
+    }
+
+    // 3. Release workspace lock
     const res = releaseWorkspaceLock(
       this.store,
       projectRoot,
@@ -847,6 +964,8 @@ export class HylixProjectManager {
     );
     return {
       closed: res.released,
+      flushedAssetMetadata,
+      releasedResourceCount,
       error: res.error,
     };
   }

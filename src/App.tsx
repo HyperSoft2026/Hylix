@@ -169,7 +169,7 @@ export function App() {
         projectManager.validateProjectWorkspace(res.projectRoot, sessionIdInput)
       );
       setProjectOpsLog((prev) => [
-        `[OPENED] '${res.projectRoot}' locked by '${sessionIdInput}' · projectId=${res.manifest?.projectId} · StaleLockRecovered=${res.recoveredFromStaleLock}`,
+        `[OPENED] '${res.projectRoot}' locked by '${sessionIdInput}' · projectId=${res.manifest?.projectId} · Assets=${res.assetRegistry?.listAssets().length ?? 0} · StaleLockRecovered=${res.recoveredFromStaleLock}`,
         ...prev,
       ]);
     } else {
@@ -259,7 +259,7 @@ export function App() {
         projectManager.validateProjectWorkspace(projectFolderInput, sessionIdInput)
       );
       setProjectOpsLog((prev) => [
-        `[CLOSED] Released workspace lock on '${projectFolderInput}' for session '${sessionIdInput}'.`,
+        `[CLOSED] Released workspace lock on '${projectFolderInput}' for session '${sessionIdInput}' · FlushedMetadata=${Boolean(res.flushedAssetMetadata)} · ReleasedResources=${res.releasedResourceCount ?? 0}.`,
         ...prev,
       ]);
     } else {
@@ -393,10 +393,10 @@ export function App() {
                 <span>License: {HYLIX_IDENTITY.license}</span>
               </div>
               <h1 className="font-display text-2xl font-bold text-slate-100">
-                Hylix Architecture &amp; Project System Diagnostic Console
+                Hylix Architecture, Scene/ECS &amp; Asset System Diagnostic Console
               </h1>
               <p className="text-sm text-slate-400 mt-1 max-w-2xl">
-                Phase 1 &amp; Phase 2 Foundation: 17 decoupled subsystems, Local-First Project Lifecycle, Workspace Lock &amp; Crash Recovery, Safe Schema Migration, and Atomic Storage.
+                Phase 1–4 Foundation: 17 decoupled subsystems, Local-First Project Lifecycle, Scene System &amp; ECS Core, Central Asset Registry (SHA-256), Resource Manager &amp; Bounded Cache, and Atomic Storage.
               </p>
             </div>
           </div>
@@ -419,10 +419,10 @@ export function App() {
               <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
                 <div>
                   <h2 className="font-display text-lg font-bold text-slate-100">
-                    01. Automated Architecture &amp; Project System Assertions
+                    01. Automated Architecture, Project, Scene/ECS &amp; Asset System Assertions
                   </h2>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Live execution results from Phase 1 Foundation + Phase 2 Project System (Run #{suiteRunCount})
+                    Live execution results from Phase 1 Foundation + Phase 2 Project + Phase 3 Scene/ECS + Phase 4 Asset System (Run #{suiteRunCount})
                   </p>
                 </div>
                 <div className="text-xs font-mono tabular-nums text-slate-400">
