@@ -23,12 +23,13 @@ This repository currently implements the **Phase 1 Architecture Foundation** of 
 - [**Physics Foundation + Collision & Spatial Queries (`docs/PHYSICS_SYSTEM.md`)**](./docs/PHYSICS_SYSTEM.md) — Project-isolated PhysicsWorld, RigidBody & Collider contracts, 2D/3D shapes & AABBs, 32-bit collision layers/masks, deterministic contacts & triggers, FixedTimestepController, Raycast & Overlap queries, and ECS/Scene/Rendering integration.
 - [**Audio System + Sound Resource Management (`docs/AUDIO_SYSTEM.md`)**](./docs/AUDIO_SYSTEM.md) — Project-isolated AudioWorld, SoundResourceDescriptor & ResourceManager integration, hierarchical AudioBus mixer (`Master`, `Music`, `SFX`, `Voice`, `UI`, `Ambience`), 2D/3D spatial attenuation & stereo panning, bounded VoicePoolManager with deterministic voice stealing, ECS `AudioSource` & `AudioListener` components, and PlatformAudioBackendContract.
 - [**Input System + Device Abstraction (`docs/INPUT_SYSTEM.md`)**](./docs/INPUT_SYSTEM.md) — Project-isolated InputManager, platform-agnostic device abstraction (`keyboard`, `mouse`, `touch`, `gamepad`, `virtual`), bounded InputBuffer & non-destructive event consumption, multi-touch & gesture recognition (`tap`, `doubleTap`, `longPress`, `swipe`), Action & Binding mapping (`button`, `axis1D`, `axis2D`, `axis3D`), priority-ordered InputContexts, ECS `InputReceiver` component, and PlatformInputBackendContract.
+- [**Scripting System + Runtime Sandbox (`docs/SCRIPTING_SYSTEM.md`)**](./docs/SCRIPTING_SYSTEM.md) — Project-isolated `ScriptRuntime` (`ScriptWorld`), `ScriptRegistry` with circular dependency detection, least-privilege `ScriptCapability` & `ScriptPermissionPolicy` (`deniedCapabilities` override), `ScriptSandbox` per-frame execution budget accounting, deterministic `ScriptScheduler`, controlled `ScriptContext` & `ScriptApi` across ECS/Input/Physics/Audio/Rendering/Assets, ECS `ScriptBehavior` component, and zero arbitrary code execution (`eval`/`Function`/`vm`/`child_process` strictly forbidden).
 - [**Android Signing & Continuity Policy (`docs/SIGNING_POLICY.md`)**](./docs/SIGNING_POLICY.md) — Production key protection, SHA-1 continuity verification, and release build safeguards.
 
 ## Verification & Development Commands
 
 ```bash
-# Run the automated 223-point Architecture, Project, Scene/ECS, Asset, Rendering, Physics, Audio, and Input verification suite
+# Run the automated 263-point Architecture, Project, Scene/ECS, Asset, Rendering, Physics, Audio, Input, and Scripting verification suite
 npm test
 
 # Run static TypeScript type and contract verification

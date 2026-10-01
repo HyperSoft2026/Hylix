@@ -127,6 +127,7 @@ Hylix operates on a strict **Local-First** model (`src/storage/atomicStorage.ts`
 │   ├── PHYSICS_SYSTEM.md                    # Phase 6 Physics Foundation & Spatial Queries specification
 │   ├── AUDIO_SYSTEM.md                      # Phase 7 Audio System & Sound Resource Management specification
 │   ├── INPUT_SYSTEM.md                      # Phase 8 Input System & Device Abstraction specification
+│   ├── SCRIPTING_SYSTEM.md                  # Phase 9 Scripting System & Runtime Sandbox specification
 │   └── SIGNING_POLICY.md                    # Android production signing & SHA-1 continuity policy
 ├── android/                                 # Android-First native Gradle foundation
 │   ├── settings.gradle.kts

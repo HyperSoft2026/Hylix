@@ -593,4 +593,137 @@ export class NullContractInputBackend implements PlatformInputBackendContract {
   }
 }
 
+/**
+ * Phase 09 Platform Script Runtime Backend Contract.
+ *
+ * Replaceable across Android, iOS, Windows, Linux, and macOS without coupling
+ * Hylix's Scripting System (`src/scripting/`) to V8 internals, Node.js `vm`,
+ * `eval()`, `Function()`, or arbitrary native command execution.
+ */
+export type PlatformScriptBackendLifecycleState =
+  | 'uninitialized'
+  | 'ready'
+  | 'shutdown';
+
+export interface PlatformScriptExecutionEnvelope {
+  readonly instanceId: string;
+  readonly scriptId: string;
+  readonly projectId: string;
+  readonly phase:
+    | 'Initialization'
+    | 'FixedUpdate'
+    | 'Update'
+    | 'LateUpdate'
+    | 'Event'
+    | 'Shutdown';
+  readonly frameNumber: number;
+  readonly fixedStepNumber: number;
+  readonly instructionCostEstimate: number;
+}
+
+export interface PlatformScriptRuntimeBackendContract {
+  readonly backendName: string;
+  readonly targetPlatform: TargetPlatformId;
+  readonly executesArbitraryUntrustedSource: false;
+  getState(): PlatformScriptBackendLifecycleState;
+  initialize(): { readonly success: boolean; readonly error?: string };
+  shutdown(): { readonly success: boolean; readonly error?: string };
+  recordScheduledStep(
+    envelope: PlatformScriptExecutionEnvelope
+  ): { readonly success: boolean; readonly error?: string };
+  getRecordedEnvelopes(): readonly PlatformScriptExecutionEnvelope[];
+  clearRecordedEnvelopes(): void;
+}
+
+/**
+ * Android Script Bridge Contract (Contract Only — No Native VM/JNI Execution in Phase 09).
+ * Preserves `com.hypersoft.hylix` and requires zero additional Android permissions.
+ */
+export interface AndroidScriptBridgeContract {
+  readonly platformId: TargetPlatformId.ANDROID;
+  readonly applicationId: 'com.hypersoft.hylix';
+  readonly runtimeBoundaryProvider: 'AndroidSandboxedScriptBridgeContract';
+  readonly requiresExtraAndroidPermissions: false;
+  readonly allowsDirectFilesystemOrShellAccess: false;
+  readonly allowsDynamicCodeEvaluation: false;
+}
+
+export function createAndroidScriptBridgeContract(): AndroidScriptBridgeContract {
+  return Object.freeze({
+    platformId: TargetPlatformId.ANDROID,
+    applicationId: 'com.hypersoft.hylix',
+    runtimeBoundaryProvider: 'AndroidSandboxedScriptBridgeContract',
+    requiresExtraAndroidPermissions: false,
+    allowsDirectFilesystemOrShellAccess: false,
+    allowsDynamicCodeEvaluation: false,
+  });
+}
+
+/**
+ * Deterministic contract-only reference implementation of `PlatformScriptRuntimeBackendContract`.
+ * Enforces backend lifecycle (`uninitialized -> ready -> shutdown`) and records deterministic
+ * scheduled step envelopes without executing any untrusted code.
+ */
+export class NullContractScriptRuntimeBackend
+  implements PlatformScriptRuntimeBackendContract
+{
+  public readonly backendName = 'HylixNullContractScriptRuntimeBackend';
+  public readonly targetPlatform: TargetPlatformId;
+  public readonly executesArbitraryUntrustedSource = false as const;
+  private state: PlatformScriptBackendLifecycleState = 'uninitialized';
+  private readonly recordedEnvelopes: PlatformScriptExecutionEnvelope[] = [];
+
+  constructor(targetPlatform: TargetPlatformId = TargetPlatformId.ANDROID) {
+    this.targetPlatform = targetPlatform;
+  }
+
+  public getState(): PlatformScriptBackendLifecycleState {
+    return this.state;
+  }
+
+  public initialize(): { readonly success: boolean; readonly error?: string } {
+    if (this.state === 'shutdown') {
+      return {
+        success: false,
+        error: 'Cannot initialize script runtime backend after shutdown.',
+      };
+    }
+    this.state = 'ready';
+    return { success: true };
+  }
+
+  public shutdown(): { readonly success: boolean; readonly error?: string } {
+    if (this.state === 'shutdown') {
+      return {
+        success: false,
+        error: 'Script runtime backend is already shut down.',
+      };
+    }
+    this.recordedEnvelopes.length = 0;
+    this.state = 'shutdown';
+    return { success: true };
+  }
+
+  public recordScheduledStep(
+    envelope: PlatformScriptExecutionEnvelope
+  ): { readonly success: boolean; readonly error?: string } {
+    if (this.state !== 'ready') {
+      return {
+        success: false,
+        error: `Script runtime backend is '${this.state}' (expected 'ready').`,
+      };
+    }
+    this.recordedEnvelopes.push(Object.freeze({ ...envelope }));
+    return { success: true };
+  }
+
+  public getRecordedEnvelopes(): readonly PlatformScriptExecutionEnvelope[] {
+    return Object.freeze([...this.recordedEnvelopes]);
+  }
+
+  public clearRecordedEnvelopes(): void {
+    this.recordedEnvelopes.length = 0;
+  }
+}
+
 

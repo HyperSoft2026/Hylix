@@ -56,6 +56,13 @@ export interface SceneInputConfigurationContract {
   readonly defaultContextName: string;
 }
 
+export interface SceneScriptConfigurationContract {
+  readonly maxScriptInstances: number;
+  readonly maxInstructionsPerFrame: number;
+  readonly maxEventsPerFrame: number;
+  readonly enableScriptExecution: boolean;
+}
+
 export interface SceneDefinition {
   readonly schemaVersion: number;
   readonly sceneId: string;
@@ -65,6 +72,7 @@ export interface SceneDefinition {
   readonly physicsConfig?: ScenePhysicsConfigurationContract;
   readonly audioConfig?: SceneAudioConfigurationContract;
   readonly inputConfig?: SceneInputConfigurationContract;
+  readonly scriptConfig?: SceneScriptConfigurationContract;
 }
 
 /**
@@ -92,6 +100,7 @@ const ALLOWED_SCENE_TOP_KEYS = new Set([
   'physicsConfig',
   'audioConfig',
   'inputConfig',
+  'scriptConfig',
 ]);
 
 const ALLOWED_ENTITY_TOP_KEYS = new Set([
@@ -610,6 +619,87 @@ export function validateSceneDefinition(
     }
   }
 
+  // Validate optional Scene scriptConfig (authored configuration only; rejects runtime script instances/handles)
+  let normalizedScriptConfig: SceneScriptConfigurationContract | undefined;
+  if (candidate.scriptConfig !== undefined) {
+    if (!isPlainObject(candidate.scriptConfig)) {
+      errors.push('Scene scriptConfig must be a non-null object.');
+    } else {
+      const sc = candidate.scriptConfig;
+      const allowedScKeys = new Set([
+        'maxScriptInstances',
+        'maxInstructionsPerFrame',
+        'maxEventsPerFrame',
+        'enableScriptExecution',
+      ]);
+      for (const k of Object.keys(sc)) {
+        if (!allowedScKeys.has(k)) {
+          errors.push(
+            `Forbidden or unexpected property '${k}' in Scene scriptConfig (runtime script state cannot be stored in SceneDefinition).`
+          );
+        }
+      }
+      const maxScriptInstances =
+        sc.maxScriptInstances !== undefined ? sc.maxScriptInstances : 2048;
+      if (
+        typeof maxScriptInstances !== 'number' ||
+        !Number.isFinite(maxScriptInstances) ||
+        !Number.isInteger(maxScriptInstances) ||
+        maxScriptInstances < 1 ||
+        maxScriptInstances > 4096
+      ) {
+        errors.push(
+          'Scene scriptConfig.maxScriptInstances must be an integer in [1, 4096].'
+        );
+      }
+      const maxInstructionsPerFrame =
+        sc.maxInstructionsPerFrame !== undefined
+          ? sc.maxInstructionsPerFrame
+          : 50000;
+      if (
+        typeof maxInstructionsPerFrame !== 'number' ||
+        !Number.isFinite(maxInstructionsPerFrame) ||
+        !Number.isInteger(maxInstructionsPerFrame) ||
+        maxInstructionsPerFrame < 1 ||
+        maxInstructionsPerFrame > 500000
+      ) {
+        errors.push(
+          'Scene scriptConfig.maxInstructionsPerFrame must be an integer in [1, 500000].'
+        );
+      }
+      const maxEventsPerFrame =
+        sc.maxEventsPerFrame !== undefined ? sc.maxEventsPerFrame : 256;
+      if (
+        typeof maxEventsPerFrame !== 'number' ||
+        !Number.isFinite(maxEventsPerFrame) ||
+        !Number.isInteger(maxEventsPerFrame) ||
+        maxEventsPerFrame < 1 ||
+        maxEventsPerFrame > 1024
+      ) {
+        errors.push(
+          'Scene scriptConfig.maxEventsPerFrame must be an integer in [1, 1024].'
+        );
+      }
+      const enableScriptExecution =
+        sc.enableScriptExecution !== undefined
+          ? sc.enableScriptExecution
+          : true;
+      if (typeof enableScriptExecution !== 'boolean') {
+        errors.push(
+          'Scene scriptConfig.enableScriptExecution must be a boolean.'
+        );
+      }
+      if (errors.length === 0) {
+        normalizedScriptConfig = Object.freeze({
+          maxScriptInstances: maxScriptInstances as number,
+          maxInstructionsPerFrame: maxInstructionsPerFrame as number,
+          maxEventsPerFrame: maxEventsPerFrame as number,
+          enableScriptExecution: enableScriptExecution as boolean,
+        });
+      }
+    }
+  }
+
   // Validate Parent/Child Hierarchy across entities
   if (validatedEntities.length > 0) {
     const hierarchyCheck = validateEntityHierarchy(validatedEntities);
@@ -635,6 +725,7 @@ export function validateSceneDefinition(
     ...(normalizedPhysicsConfig ? { physicsConfig: normalizedPhysicsConfig } : {}),
     ...(normalizedAudioConfig ? { audioConfig: normalizedAudioConfig } : {}),
     ...(normalizedInputConfig ? { inputConfig: normalizedInputConfig } : {}),
+    ...(normalizedScriptConfig ? { scriptConfig: normalizedScriptConfig } : {}),
   });
 
   return {
@@ -680,6 +771,8 @@ export function createSceneDefinition(options: {
   readonly entities?: readonly HylixEntity[];
   readonly physicsConfig?: ScenePhysicsConfigurationContract;
   readonly audioConfig?: SceneAudioConfigurationContract;
+  readonly inputConfig?: SceneInputConfigurationContract;
+  readonly scriptConfig?: SceneScriptConfigurationContract;
   readonly seedHint?: string;
   readonly registry?: ComponentRegistry;
 }): SceneValidationResult {
@@ -700,6 +793,8 @@ export function createSceneDefinition(options: {
     entities: options.entities ?? [],
     ...(options.physicsConfig ? { physicsConfig: options.physicsConfig } : {}),
     ...(options.audioConfig ? { audioConfig: options.audioConfig } : {}),
+    ...(options.inputConfig ? { inputConfig: options.inputConfig } : {}),
+    ...(options.scriptConfig ? { scriptConfig: options.scriptConfig } : {}),
   };
 
   return validateSceneDefinition(
