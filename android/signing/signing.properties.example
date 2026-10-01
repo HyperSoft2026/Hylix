@@ -1,0 +1,18 @@
+# ==============================================================================
+# Hylix Production Signing Configuration Template (DO NOT COMMIT ACTUAL VALUES)
+# ==============================================================================
+# Copy this file to an untracked location or `android/signing/signing.properties`
+# (which is ignored by .gitignore) ONLY when performing an official release build.
+#
+# CRITICAL SIGNING RULES:
+# 1. Generate the official HyperSoft Hylix production keystore ONCE outside the repository.
+# 2. Never auto-generate a new keystore during CI or local builds.
+# 3. Never place the .jks / .keystore file inside the Git repository tree.
+# 4. Record the official certificate SHA-1 fingerprint in `expectedCertSha1` once generated
+#    so every future release verifies continuity against accidental key replacement.
+
+storeFile=/ABSOLUTE/EXTERNAL/PATH/OUTSIDE/REPO/hylix-production-release.jks
+storePassword=
+keyAlias=hylix-release-key
+keyPassword=
+expectedCertSha1=

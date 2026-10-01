@@ -1,0 +1,54 @@
+# ==============================================================================
+# Hylix — Git Ignore & Security Protection Rules
+# ==============================================================================
+
+# CRITICAL: Android Signing Keys & Certificates (NEVER COMMIT TO GIT)
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+*.der
+*.cer
+*.crt
+signing.properties
+keystore.properties
+release-signing.properties
+**/signing/*.properties
+!**/signing/signing.properties.example
+
+# Environment & Local Machine Configuration (No Secrets or Developer Paths)
+.env
+.env.*
+!.env.example
+local.properties
+
+# Ephemeral Build Workspaces, Atomic Write Staging & Backups
+*.tmp
+*.bak
+.hylix-staging/
+.hylix-build-workspace/
+.hylix-recovery/
+
+# Android & Gradle Build Artifacts
+.gradle/
+build/
+**/build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Node / Web Tooling Artifacts
+node_modules/
+dist/
+dist-ssr/
+*.local
+*.tsbuildinfo
+
+# IDE & OS Metadata
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db

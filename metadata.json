@@ -1,0 +1,8 @@
+{
+  "name": "Hylix Engine & Editor",
+  "description": "Hylix V1.0.0 Architecture Foundation — Free and open-source Android-first game engine and editor by HyperSoft.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

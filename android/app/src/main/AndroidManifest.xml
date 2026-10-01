@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      Hylix V1.0.0 Security & Least-Privilege Policy:
+      - Zero dangerous or unnecessary runtime permissions are requested.
+      - Projects and assets operate strictly inside the Android Application Sandbox
+        (Context.getFilesDir(), Context.getNoBackupFilesDir(), Context.getCacheDir())
+        and user-initiated Storage Access Framework (SAF) document trees.
+      - allowBackup="false" prevents automatic unencrypted cloud backup of active workspaces.
+    -->
+
+    <application
+        android:label="Hylix"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:DataExtractionRules="@null"
+        android:supportsRtl="true">
+
+        <activity
+            android:name="com.hypersoft.hylix.platform.android.HylixMainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>
