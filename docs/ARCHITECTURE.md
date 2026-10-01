@@ -123,6 +123,7 @@ Hylix operates on a strict **Local-First** model (`src/storage/atomicStorage.ts`
 │   ├── PROJECT_SYSTEM.md                    # Phase 2 Project System & Local Storage specification
 │   ├── SCENE_AND_ECS.md                     # Phase 3 Scene System & ECS Core specification
 │   ├── ASSET_SYSTEM.md                      # Phase 4 Asset System & Resource Management specification
+│   ├── RENDERING_SYSTEM.md                  # Phase 5 Rendering Foundation & 2D/3D Abstraction specification
 │   └── SIGNING_POLICY.md                    # Android production signing & SHA-1 continuity policy
 ├── android/                                 # Android-First native Gradle foundation
 │   ├── settings.gradle.kts

@@ -29,6 +29,7 @@ import { RedactedDiagnosticLogger } from '../debugging/diagnosticLogger';
 import { runProjectSystemVerificationChecks } from './projectSystemVerification';
 import { runSceneAndEcsVerificationChecks } from './sceneEcsVerification';
 import { runAssetSystemVerificationChecks } from './assetSystemVerification';
+import { runRenderingVerificationChecks } from './renderingVerification';
 
 export interface VerificationAssertionResult {
   readonly id: string;
@@ -41,7 +42,8 @@ export interface VerificationAssertionResult {
     | 'Project Lifecycle & Manifest'
     | 'Workspace Lock & Recovery'
     | 'Scene System & ECS Core'
-    | 'Asset System & Resource Management';
+    | 'Asset System & Resource Management'
+    | 'Rendering Foundation & 2D/3D Abstraction';
   readonly title: string;
   readonly passed: boolean;
   readonly details: string;
@@ -314,6 +316,10 @@ export function runArchitectureVerificationSuite(): ArchitectureVerificationSuit
   // 42..76: Run Phase 4 Asset System & Resource Management Verification Suite (35 assertions)
   const phase4Checks = runAssetSystemVerificationChecks();
   results.push(...phase4Checks);
+
+  // 77..108: Run Phase 5 Rendering Foundation & 2D/3D Render Abstraction Verification Suite (32 assertions)
+  const phase5Checks = runRenderingVerificationChecks();
+  results.push(...phase5Checks);
 
   const passedChecks = results.filter((r) => r.passed).length;
   const failedChecks = results.length - passedChecks;

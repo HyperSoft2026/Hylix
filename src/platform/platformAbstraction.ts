@@ -84,3 +84,24 @@ export function verifyAndroidPlatformInvariants(
     errors,
   };
 }
+
+export interface AndroidRenderSurfaceBridgeContract {
+  readonly platformId: TargetPlatformId.ANDROID;
+  readonly applicationId: 'com.hypersoft.hylix';
+  readonly surfaceProvider: 'AndroidNativeWindowSurfaceContract';
+  readonly requiresExtraAndroidPermissions: false;
+  readonly allowsDirectSystemOrSdcardPaths: false;
+  readonly futureGraphicsApiTargets: readonly ('Vulkan_1_1' | 'OpenGL_ES_3_0')[];
+}
+
+export function createAndroidRenderSurfaceBridgeContract(): AndroidRenderSurfaceBridgeContract {
+  return Object.freeze({
+    platformId: TargetPlatformId.ANDROID,
+    applicationId: 'com.hypersoft.hylix',
+    surfaceProvider: 'AndroidNativeWindowSurfaceContract',
+    requiresExtraAndroidPermissions: false,
+    allowsDirectSystemOrSdcardPaths: false,
+    futureGraphicsApiTargets: Object.freeze(['Vulkan_1_1', 'OpenGL_ES_3_0'] as const),
+  });
+}
+
