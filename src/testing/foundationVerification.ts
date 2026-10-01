@@ -30,6 +30,7 @@ import { runProjectSystemVerificationChecks } from './projectSystemVerification'
 import { runSceneAndEcsVerificationChecks } from './sceneEcsVerification';
 import { runAssetSystemVerificationChecks } from './assetSystemVerification';
 import { runRenderingVerificationChecks } from './renderingVerification';
+import { runPhysicsVerificationChecks } from './physicsVerification';
 
 export interface VerificationAssertionResult {
   readonly id: string;
@@ -43,7 +44,8 @@ export interface VerificationAssertionResult {
     | 'Workspace Lock & Recovery'
     | 'Scene System & ECS Core'
     | 'Asset System & Resource Management'
-    | 'Rendering Foundation & 2D/3D Abstraction';
+    | 'Rendering Foundation & 2D/3D Abstraction'
+    | 'Physics Foundation & Spatial Queries';
   readonly title: string;
   readonly passed: boolean;
   readonly details: string;
@@ -320,6 +322,10 @@ export function runArchitectureVerificationSuite(): ArchitectureVerificationSuit
   // 77..108: Run Phase 5 Rendering Foundation & 2D/3D Render Abstraction Verification Suite (32 assertions)
   const phase5Checks = runRenderingVerificationChecks();
   results.push(...phase5Checks);
+
+  // 109..147: Run Phase 6 Physics Foundation & Spatial Queries Verification Suite (39 assertions)
+  const phase6Checks = runPhysicsVerificationChecks();
+  results.push(...phase6Checks);
 
   const passedChecks = results.filter((r) => r.passed).length;
   const failedChecks = results.length - passedChecks;

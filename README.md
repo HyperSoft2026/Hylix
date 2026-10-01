@@ -20,12 +20,13 @@ This repository currently implements the **Phase 1 Architecture Foundation** of 
 - [**Scene System & ECS Core Specification (`docs/SCENE_AND_ECS.md`)**](./docs/SCENE_AND_ECS.md) — Scene schema, deterministic entity/scene IDs, extensible component registry, Transform contract, hierarchy cycle prevention, and runtime instance isolation.
 - [**Asset System & Resource Management Specification (`docs/ASSET_SYSTEM.md`)**](./docs/ASSET_SYSTEM.md) — Path-independent Asset IDs, 13 canonical asset types, SHA-256 content hashing, dependency cycle detection, Resource Manager reference counting, bounded cache, and automatic cache invalidation.
 - [**Rendering Foundation & 2D/3D Render Abstraction (`docs/RENDERING_SYSTEM.md`)**](./docs/RENDERING_SYSTEM.md) — Platform-independent RenderBackend & RenderDevice, Frame lifecycle, Camera & Viewport, Matrix4/Transform math, 2D Sprite & 3D Mesh/Material/Shader contracts, deterministic RenderQueue, and read-only Scene/ECS extraction.
+- [**Physics Foundation + Collision & Spatial Queries (`docs/PHYSICS_SYSTEM.md`)**](./docs/PHYSICS_SYSTEM.md) — Project-isolated PhysicsWorld, RigidBody & Collider contracts, 2D/3D shapes & AABBs, 32-bit collision layers/masks, deterministic contacts & triggers, FixedTimestepController, Raycast & Overlap queries, and ECS/Scene/Rendering integration.
 - [**Android Signing & Continuity Policy (`docs/SIGNING_POLICY.md`)**](./docs/SIGNING_POLICY.md) — Production key protection, SHA-1 continuity verification, and release build safeguards.
 
 ## Verification & Development Commands
 
 ```bash
-# Run the automated 108-point Architecture, Project, Scene/ECS, Asset, and Rendering verification suite
+# Run the automated 147-point Architecture, Project, Scene/ECS, Asset, Rendering, and Physics verification suite
 npm test
 
 # Run static TypeScript type and contract verification

@@ -36,12 +36,19 @@ export interface SceneMetadata {
   readonly updatedAtIso: string;
 }
 
+export interface ScenePhysicsConfigurationContract {
+  readonly gravity: { readonly x: number; readonly y: number; readonly z: number };
+  readonly fixedDeltaTime: number;
+  readonly maxSubsteps: number;
+}
+
 export interface SceneDefinition {
   readonly schemaVersion: number;
   readonly sceneId: string;
   readonly sceneName: string;
   readonly metadata: SceneMetadata;
   readonly entities: readonly HylixEntity[];
+  readonly physicsConfig?: ScenePhysicsConfigurationContract;
 }
 
 /**
@@ -66,6 +73,7 @@ const ALLOWED_SCENE_TOP_KEYS = new Set([
   'sceneName',
   'metadata',
   'entities',
+  'physicsConfig',
 ]);
 
 const ALLOWED_ENTITY_TOP_KEYS = new Set([
@@ -378,6 +386,55 @@ export function validateSceneDefinition(
     }
   }
 
+  // Validate optional Scene physicsConfig (authored configuration only; rejects runtime physics caches)
+  let normalizedPhysicsConfig: ScenePhysicsConfigurationContract | undefined;
+  if (candidate.physicsConfig !== undefined) {
+    if (!isPlainObject(candidate.physicsConfig)) {
+      errors.push('Scene physicsConfig must be a non-null object.');
+    } else {
+      const pc = candidate.physicsConfig;
+      const allowedPcKeys = new Set(['gravity', 'fixedDeltaTime', 'maxSubsteps']);
+      for (const k of Object.keys(pc)) {
+        if (!allowedPcKeys.has(k)) {
+          errors.push(
+            `Forbidden or unexpected property '${k}' in Scene physicsConfig (runtime physics state cannot be stored in SceneDefinition).`
+          );
+        }
+      }
+      const g = isPlainObject(pc.gravity)
+        ? pc.gravity
+        : { x: 0, y: -9.81, z: 0 };
+      const gx = typeof g.x === 'number' && Number.isFinite(g.x) ? g.x : NaN;
+      const gy = typeof g.y === 'number' && Number.isFinite(g.y) ? g.y : NaN;
+      const gz = typeof g.z === 'number' && Number.isFinite(g.z) ? g.z : NaN;
+      if (!Number.isFinite(gx) || !Number.isFinite(gy) || !Number.isFinite(gz)) {
+        errors.push('Scene physicsConfig.gravity must have finite x, y, z numbers.');
+      }
+      const dt =
+        pc.fixedDeltaTime !== undefined ? pc.fixedDeltaTime : 1 / 60;
+      if (typeof dt !== 'number' || !Number.isFinite(dt) || dt <= 0) {
+        errors.push('Scene physicsConfig.fixedDeltaTime must be a finite number > 0.');
+      }
+      const maxSub = pc.maxSubsteps !== undefined ? pc.maxSubsteps : 8;
+      if (
+        typeof maxSub !== 'number' ||
+        !Number.isFinite(maxSub) ||
+        !Number.isInteger(maxSub) ||
+        maxSub < 1 ||
+        maxSub > 120
+      ) {
+        errors.push('Scene physicsConfig.maxSubsteps must be an integer in [1, 120].');
+      }
+      if (errors.length === 0) {
+        normalizedPhysicsConfig = Object.freeze({
+          gravity: Object.freeze({ x: gx, y: gy, z: gz }),
+          fixedDeltaTime: dt as number,
+          maxSubsteps: maxSub as number,
+        });
+      }
+    }
+  }
+
   // Validate Parent/Child Hierarchy across entities
   if (validatedEntities.length > 0) {
     const hierarchyCheck = validateEntityHierarchy(validatedEntities);
@@ -400,6 +457,7 @@ export function validateSceneDefinition(
     sceneName: (candidate.sceneName as string).trim(),
     metadata: normalizedMetadata,
     entities: Object.freeze(validatedEntities),
+    ...(normalizedPhysicsConfig ? { physicsConfig: normalizedPhysicsConfig } : {}),
   });
 
   return {
@@ -443,6 +501,7 @@ export function createSceneDefinition(options: {
   readonly sceneId?: string;
   readonly description?: string;
   readonly entities?: readonly HylixEntity[];
+  readonly physicsConfig?: ScenePhysicsConfigurationContract;
   readonly seedHint?: string;
   readonly registry?: ComponentRegistry;
 }): SceneValidationResult {
@@ -461,6 +520,7 @@ export function createSceneDefinition(options: {
       updatedAtIso: nowIso,
     },
     entities: options.entities ?? [],
+    ...(options.physicsConfig ? { physicsConfig: options.physicsConfig } : {}),
   };
 
   return validateSceneDefinition(
